@@ -17,8 +17,8 @@ int main() {
         }
         
         printf("Parent variable: %d\n", parent_value);
-        sleep(1); // Задержка, чтобы дочерний процесс успел отработать
-    } else { // Дочерний процесс, pid == 0
+        sleep(1); // (не обязательно)
+    } else { // потомок, pid == 0
         int son_value = 0;
         for (int i = 0; i < 128; i++) {
             son_value += i * i;
