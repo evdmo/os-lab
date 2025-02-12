@@ -379,19 +379,12 @@ Child proccess is finished with status 0
 ps –xf  (строка программы  system("ps xf > file.txt"); ):
 
 `  `PID TTY      STAT   TIME COMMAND
-
 ` `…
-
 ` `5750 pts/0    Ss     0:00  |   |   \\_ bash
-
 ` `7471 pts/0    S+     0:00  |   |       \\_ ./father
-
 ` `7472 pts/0    S+     0:00  |   |           \\_ son
-
 ` `7473 pts/0    S+     0:00  |   |           \\_ sh -c ps xf > file.txt
-
 ` `7474 pts/0    R+     0:00  |   |               \\_ ps xf
-
 ` `…
 ```
 Назначение полей:
@@ -412,11 +405,8 @@ R : процесс выполняется в данный момент
 ```c
 …
 5750 pts/0    Ss     0:00  |   |   \\_ bash
-
 7736 pts/0    S      0:00  |   |       \\_ ./father
-
 7737 pts/0    S      0:00  |   |       |   \\_ son
-
 7743 pts/0    R+     0:00  |   |       \\_ ps -xf
 …
 ```
@@ -426,7 +416,6 @@ R : процесс выполняется в данный момент
 ```c
 …
 5750 pts/0    Ss     0:00  |   |   \\_ bash
-
 7744 pts/0    R+     0:00  |   |       \\_ ps -xf
 …
 [1]+  Done                    ./father
@@ -438,14 +427,11 @@ R : процесс выполняется в данный момент
 Прототипы функций рассматримаемого семейства:
 ```c
 #include <sys/types.h>
-
 #include <wait.h>
 
-pid\_t wait(int \*status);
-
-pid\_t waitpid(pid\_t pid, int \*status, int options);
-
-int waitid(idtype\_t idtype, id\_t id, siginfo\_t \* infop , int options );
+pid_t wait(int *status);
+pid_t waitpid(pid_t pid, int *status, int options);
+int waitid(idtype_t idtype, id_t id, siginfo_t * infop , int options );
 ```
 Более подробно остановимся на выполнени команды wait(&status). При успешном завершении системного вызова fork процессы порождающий и порожденный равноправно сосуществуют в системе. Они выполняются, разделяя процессорное время, конкурируя за ресурсы на основе своих приоритетов. Выполнение порождающего процесса может быть приостановлено до завершения потомка системным вызовом wait. Системный вызов wait возвращает родителю идентификатор того потомка, который завершился первым после последнего обращения к wait. Если у родителя несколько потомков, то чтобы узнать о завершении каждого из них, нужно выполнить несколько системных вызовов wait с проверкой их возвращаемых значений. Если процесс не имеет потомков, wait возвращает код (-1).
 
@@ -1281,37 +1267,31 @@ root@debian:/home/user/OS/Lab3/10# ./lim
 # <a name="_toc190185316"></a>**Управление заданиями. Утилиты jobs и fg**
 
 Запустим в фоновом режиме несколько утилит:
-
+```c
 $ sleep 100 & sleep 110 & sleep 120 & sleep 130 &
 
 [1] 7154
-
 [2] 7155
-
 [3] 7156
-
 [4] 7157
-
+```
 C помощью утилиты jobs -l можно проанализировать порядок выполнения поставленных задач:
-
+```c
 user@debian:~/OS/Lab3/10$ jobs -l
 
 [1]   7154 Running                 sleep 100 &
-
 [2]   7155 Running                 sleep 110 &
-
 [3]-  7156 Running                 sleep 120 &
-
 [4]+  7157 Running                 sleep 130 &
 
 user@debian:~/OS/Lab3/10$ jobs -l %%
 
 [4]+  7157 Running                 sleep 130 &
-
+```
 Из результатов следует, выполнение команд начинается с конца.
 
 Отменим одну из задач:
-
+```c
 $ kill 7156
 
 [3]-  Завершено      sleep 120
@@ -1319,242 +1299,145 @@ $ kill 7156
 $ jobs -l
 
 [1]   7154 Running                 sleep 100 &
-
 [2]-  7155 Running                 sleep 110 &
-
 [4]+  7157 Running                 sleep 130 &
-
+```
 С помощью утилиты **fg** можно повысить приоритет задач. Например,
-
+```c
 user@debian:~/OS/Lab3/10$ fg %1
 
 sleep 100
-
+```
 Благодаря ей, сразу начинает выполняться задача 1, причем не в фоновом режиме.
 
 Новые добавленные задачи добавляются в конец очереди и начинают выполняться первыми.
-
+```c
 user@debian:~/OS/Lab3/10$ sleep 30 &
 
 [5] 7183
-
 [2]   Done                    sleep 110
 
 user@debian:~/OS/Lab3/10$ jobs -l
 
 [4]-  7157 Running                 sleep 130 &
-
 [5]+  7183 Running                 sleep 30 &
-
+```
 # <a name="_toc190185317"></a>**Наследование при создании процессов**
 
 Проанализируем наследование на этапах fork() и exec(). Для этого проведем эксперимент по проверке доступа потомков к файлам, открытым породившим их процессом. Рассмотрим пример кода, в котором в качестве аргументов процессам-потомкам передаются дескрипторы открытого и созданного родительским процессом файлов (в данном примере это infile.txt и outfile.txt соответственно). Порожденные процессы независимо друг от друга вызывают функции read и write, и в цикле считывают по одному байту информацию из исходного файла и переписывают ее в файл вывода. 
 
 father.c
-
+```c
 #include <stdio.h>
-
 #include <sched.h>
-
 #include <sys/mman.h>
-
 #include <stdlib.h>
-
 #include <unistd.h>
-
 #include <fcntl.h>
 
 void itoa(char \*buf, int value) {
-
-`    `sprintf(buf, "%d", value);
-
+	sprintf(buf, "%d", value);
 }
 
 int main (void)
-
 { 
+int i, pid, ppid, status;
+int fdrd, fdwr;
+char str1[10], str2[10];
+char c;
+struct sched\_param shdprm;
 
-`	`int i, pid, ppid, status;
-
-`	`int fdrd, fdwr;
-
-`	`char str1[10], str2[10];
-
-`	`char c;
-
-`	`struct sched\_param shdprm;
-
-
-
-` `if (mlockall((MCL\_CURRENT | MCL\_FUTURE)) < 0)
-
-`		`perror("mlockall error");	
-
+if (mlockall((MCL\_CURRENT | MCL\_FUTURE)) < 0)
+		perror("mlockall error");	
 pid = getpid();
-
-`   	`ppid = getppid();
-
-
+ppid = getppid();
 
 shdprm.sched\_priority = 1;
-
-`	`if (sched\_setscheduler (0, SCHED\_RR, &shdprm) == -1)
-
-`			`perror ("SCHED\_SETSCHEDULER\_1");
-
-
+if (sched\_setscheduler (0, SCHED\_RR, &shdprm) == -1)
+	perror ("SCHED\_SETSCHEDULER\_1");
 
 if ((fdrd = open("infile.txt",O\_RDONLY)) == -1)
-
-`		`perror("Openning file");
-
-`	`if ((fdwr = creat("outfile.txt",0666)) == -1)                
-
-`		`perror("Creating file");
-
-`	`itoa(str1, fdrd);
-
-`	`itoa(str2, fdwr);
-
-
+	perror("Openning file");
+if ((fdwr = creat("outfile.txt",0666)) == -1)                
+	perror("Creating file");
+itoa(str1, fdrd);
+itoa(str2, fdwr);
 
 for (i = 0; i < 2; i++)
-
-`		`if(fork() == 0)	
-
-`		`{
-
-`			`shdprm.sched\_priority = 50;
-
-`			`if (sched\_setscheduler (0, SCHED\_RR, &shdprm) == -1)
-
-`				`perror ("SCHED\_SETSCHEDULER\_1");
-
-`			`execl("son", "son", str1, str2, NULL);
-
-`		`}
-
-
-
+	if(fork() == 0)	
+	{
+	shdprm.sched\_priority = 50;
+	if (sched\_setscheduler (0, SCHED\_RR, &shdprm) == -1)
+		perror ("SCHED\_SETSCHEDULER\_1");
+	execl("son", "son", str1, str2, NULL);
+	}
 if (close(fdrd) != 0)
-
-`		`perror("Closing file");
-
-`	`for (i = 0; i < 2; i++)
-
-`		`printf("Процесс с pid = %d завершен\n", wait(&status));
-
-`	`return 0;
-
+	perror("Closing file");
+for (i = 0; i < 2; i++)
+	printf("Процесс с pid = %d завершен\n", wait(&status));
+return 0;
 }
-
+```
 son.c
-
+```c
 #include <sched.h>
-
 #include <sys/mman.h>
-
 #include <fcntl.h>
 
 int main(int argc, char \*argv[])
-
 {		
-
-`	`if (mlockall((MCL\_CURRENT | MCL\_FUTURE)) < 0)
-
-`		`perror("mlockall error");	
-
-`	`char c;	
-
-`	`int pid, ppid, buf;
-
-`	`int fdrd = atoi(argv[1]);
-
-`	`int fdwr = atoi(argv[2]);
-
-
-
+    if (mlockall((MCL\_CURRENT | MCL\_FUTURE)) < 0)
+	perror("mlockall error");	
+char c;	
+int pid, ppid, buf;
+	int fdrd = atoi(argv[1]);
+	int fdwr = atoi(argv[2]);
 pid=getpid();
+ppid=getppid();
+printf("son file decriptor = %d\n", fdrd);
+printf("son params:  pid=%i  ppid=%i\n",pid,ppid);
+sleep(5);
 
-`	`ppid=getppid();
-
-`	`printf("son file decriptor = %d\n", fdrd);
-
-`	`printf("son params:  pid=%i  ppid=%i\n",pid,ppid);
-
-`	`sleep(5);
-
-
-
-`	`for(;;)                                                
-
-`    `{                                                      
-
-`	    `if (read(fdrd,&c,1) != 1)                     
-
-`			`return 0;                                     
-
-`       	    `write(fdwr,&c,1);
-
-`	    `printf("pid = %d: %c\n", pid, c);                                
-
-`    `}
-
-`	`return 0;
-
+for(;;)                                                
+{                                                      
+	if (read(fdrd,&c,1) != 1)                     
+		return 0;                                     
+	write(fdwr,&c,1);
+	printf("pid = %d: %c\n", pid, c);                                
 }
-
+`return 0;
+}
+```
 Дескрипторы fdrd *в обоих потомках* указывают на запись в таблице файлов, соответствующую исходному файлу, а дескрипторы, подставляемые в качестве fdwr, на запись, соответствующую файлу вывода. Ядро смещает внутрифайловые указатели после каждой операции чтения или записи, поэтому оба процесса никогда не обратятся вместе на чтение или запись по одному и тому же указателю или смещению внутри файла. 
 
 Содержимое выходного файла зависит от очередности, в которой ядро ставит процессы на выполнение. Если очередность такая, что процессы исполняют системные функции попеременно (чередуя пары вызовов функций read-write), содержимое выходного файла будет совпадать с содержимым входного файла. В примере рассматривается случай, когда используется RR-политика с равными приоритетами процессов, потомки пользуются одной переменной для считанного из входного файла символа, т.к. в результате наследования разделяют одно адресное пространство, и результат выполнения программы получается следующим:
 
 
 ./father
-
+```c
 son file decriptor = 3
-
 son params: pid=21331  ppid=21319
-
 son file decriptor = 3
-
 son params: pid=21330  ppid=21319
-
 pid = 21331: H
-
 pid = 21330: e
-
 pid = 21331: l
-
 pid = 21330: L
-
 pid = 21331: o
-
 pid = 21330: 
-
 pid = 21331: w
-
 pid = 21330: o
-
 pid = 21331: r
-
 pid = 21330: l
-
 pid = 21331: d
-
 pid = 21330: ! 
-
 pid = 21331: 
-
 pid = 21330: 
-
 Процесс с pid = 21340 завершен
-
 Процесс с pid = 21341 завершен
-
 Содержимое infile.txt:		HelLo world!
-
 Содержимое outfile.txt:		eL ol!                     
-
+```
 В итоге в такой реализации в выходной файл записался каждый второй символ. В данном случае последовательность вывода можно изменить либо изменив код программы, либо меняя параметры планирования. Первый способ естественно проще. В реальных приложениях смена параметров планирования должна быть глубоко *обоснована,* и предварительно проанализированы все ее последствия, в том числе и для других приложений, работающих в системе.
 
 `	`При выполнении функции fork() ядро создает потомка как копию родительского процесса, процесс-**потомок** **наследует** от родителя:
@@ -1590,7 +1473,7 @@ pid = 21330:
 `    `блокированных файлов (record locking).
 
 Продолжая эксперимент с  программой демонстрирующей наследование файловых дескрипторов открытых файлов и указателей на позицию при чтении и записи в файл, попробуем закрыть в одном из процессов файл с заданным дескриптором, например, fdrd в son.c:
-
+```c
 for(;;)                                                
 
 `    `{                                                      
@@ -1608,49 +1491,36 @@ for(;;)
 `			`perror("Closing file");                                
 
 `    `}
-
+```
 Результатом выполнения будет частичное чтение исходного файла до его закрытия одним из потомков, например:
-
+```c
 root@debian:/home/user/OS/Lab3/8# ./father
 
 son file decriptor = 3
-
 son params:  pid=21530  ppid=21528
-
 son file decriptor = 3
-
 son params:  pid=21529  ppid=21528
-
 pid = 21530: H
-
 pid = 21529: e
-
 Процесс с pid = 21530 завершен
-
 Процесс с pid = 21529 завершен
-
 Содержимое infile.txt:		HelLo world!
-
 Содержимое outfile.txt:		e
-
+```
 Убедиться в наследовании других параметров при порождении потомков можно, проанализировав вывод утилиты
+```c
+ ps -o uid,gid,ruid,pid,ppid,pgid,tty,vsz,stat,command 
 
-`	`ps -o uid,gid,ruid,pid,ppid,pgid,tty,vsz,stat,command 
+  UID   GID  RUID   PID       PPID      PGID    TT       VSZ STAT COMMAND
 
-`  `UID   GID  RUID   PID       PPID      PGID    TT       VSZ STAT COMMAND
+    0        0      1000    21766   18816    21766    pts/3     1708 SL+  ./father
+    0        0      1000    21767   21766    21766    pts/3     1712 SL+  son 3 4
+    0        0      1000    21768   21766    21766    pts/3     1712 SL+  son 3 4
+    0        0      1000    21769   21766    21766    pts/3      940   S+   sh -c  ps -o …
+    0        0      1000    21770   21769    21766    pts/3     4136 R+   ps -o 
 
-`    `0        0      1000    21766   18816    21766    pts/3     1708 SL+  ./father
-
-`    `0        0      1000    21767   21766    21766    pts/3     1712 SL+  son 3 4
-
-`    `0        0      1000    21768   21766    21766    pts/3     1712 SL+  son 3 4
-
-`    `0        0      1000    21769   21766    21766    pts/3      940   S+   sh -c  ps -o …
-
-`    `0        0      1000    21770   21769    21766    pts/3     4136 R+   ps -o 
-
-`					`uid,gid,ruid,pid,ppid,pgid,tty,vsz,stat,command
-
+  uid,gid,ruid,pid,ppid,pgid,tty,vsz,stat,command
+```
 т.е. от родителя наследуются UID, GID, RUID, PGID,TTY и, как было показано ранее, приоритеты и политика планирования процессов. Что касается наследования сигналов, рассмотрим это далее при обсуждении сигналов, как средства IPC.
 
 # <a name="_toc190185318"></a>**Взаимодействие родственных процессов**
@@ -1670,19 +1540,14 @@ pid = 21529: e
 Для рассмотрения перечисленных ситуаций используем следующий код:
 
 father.c   (создает 3 потомка)
-
+```c
 #include <stdio.h>
-
 #include <unistd.h>
-
 #include <sys/types.h>
-
 #include <wait.h>
-
 #include <string.h>
 
 int main(int argc, char \*argv[])
-
 {
 
 `   	`int sid, pid, pid1, ppid, status;
@@ -1714,135 +1579,99 @@ int main(int argc, char \*argv[])
 `  `waitpid(pid1, &status, WNOHANG); //эта строка исключается в п.б) и в)
 
 }
-
-`	`a) son1 
-
+```
+a) son1 
+```c
 #include <stdio.h>
 
 void main()
-
 {
-
-`	`int pid,ppid;
-
-`	`pid=getpid();
-
-`	`ppid=getppid();
+int pid,ppid;
+pid=getpid();
+ppid=getppid();
 
 printf("SON\_1 PARAMS:  pid=%i  ppid=%i\nFather creates and waits \n", pid, ppid);
-
-`	`sleep(3);
-
+sleep(3);
 }
-
-`	`б) son2 (father завершает свое выполнение раньше son2)
-
+```
+б) son2 (father завершает свое выполнение раньше son2)
+```c
 #include <stdio.h>
 
 void main(int argc, char \*argv[])
-
 {
-
-`	`int pid,ppid;
-
-`	`pid=getpid();
-
-`	`ppid=getppid();
-
-`	`char command[50];
-
-`	`sprintf(command, "ps xjf | grep son2 >> %s", argv[1]);
-
-`	`printf("SON\_2 PARAMS:  pid=%i  ppid=%i\nFather finished 
-
-before son  termination without waiting for it \n",pid,ppid);
-
-`	`sleep(20);
-
-`	`ppid=getppid();
-
-`	`printf("SON\_2 PARAMS ARE CHANGED:  pid=%i  ppid=%i\n",pid,ppid);
-
-`	`system(command);
-
+int pid,ppid;
+pid=getpid();
+ppid=getppid();
+char command[50];
+sprintf(command, "ps xjf | grep son2 >> %s", argv[1]);
+printf("SON\_2 PARAMS:  pid=%i  ppid=%i\nFather finished 
+			before son  termination without waiting for it \n",pid,ppid);
+sleep(20);
+ppid=getppid();
+printf("SON\_2 PARAMS ARE CHANGED:  pid=%i  ppid=%i\n",pid,ppid);
+system(command);
 }
-
-`	`в) son3  (father не ожидает его завершения; son3 завершается)
-
+```
+в) son3  (father не ожидает его завершения; son3 завершается)
+```c
 #include <stdio.h>
 
 void main()
-
 {
-
-`	`int pid,ppid;
-
-`	`pid=getpid();
-
-`	`ppid=getppid();
-
-printf("SON\_3 PARAMS:  pid=%i  ppid=%i\nson3 terminated – 
-
-`									`ZOMBIE\n",pid,ppid);
-
-`	`ppid=getppid();
-
-`	`printf("SON\_3 PARAMS:  pid=%i  ppid=%i\n",pid,ppid);
-
+int pid,ppid;
+pid=getpid();
+ppid=getppid();
+printf("SON\_3 PARAMS:  pid=%i  ppid=%i\nson3 terminated – ZOMBIE\n",pid,ppid);
+ppid=getppid();
+printf("SON\_3 PARAMS:  pid=%i  ppid=%i\n",pid,ppid);
 }
-
+```
 Согласно коду результаты выполнения всех трех ситуаций отображаются на консоли, а в итоговый файл, который передается в качестве параметра father.c, записываются результаты выполнения (ps\_ xjf) во время выполнения программ.
-
+```c
 user@debian:~/ OS/Lab3/3 $ ./father res.txt
 
 FATHER PARAMS: sid = 14095  pid=25941  ppid=14095
-
 SON\_1 PARAMS:  pid=25942  ppid=25941
-
 Father creates and waits 
-
 SON\_2 PARAMS:  pid=25943  ppid=25941
-
 Father finished before son termination without waiting for it 
-
 SON\_3 PARAMS:  pid=25944  ppid=25941
-
 son3 terminated - ZOMBIE 
-
 SON\_3 PARAMS:  pid=25944  ppid=25941
 
 user@debian:~/OS/Lab3/3 $ SON\_2 PARAMS ARE CHANGED:  pid=25943  ppid=1
-
+```
 В коде son2 для увеличения длительности существования потомка используется задержка в 20 сек,  в результате более раннего завершения родителя потомок становится наследником init, PID которого равен единице, т.е. son2 становится «самостоятельным» процессом с PPID=1, что и фиксируется в выходных данных в результате исполнения.
 
 Как видно из результатов, как только процесс-отец завершается, на консоли сразу появляется приглашение на ввод команды. А son2 продолжает свое выполнение в фоновом режиме. Т.к. Время выполнения son2 много дольше, то результат выполнения процесса-потомка, пофвялется уже после приглашения.
 
 Содержимое файла вывода res.txt:
+```c
+PPID	PID  	PGID    SID    TPGID      STAT             COMMAND
 
-PPID	PID  	PGID   SID     TPGID  STAT  COMMAND
+4694 	14095 	14095 	14095  25941       Ss      | |   \\_ bash
 
-` `4694 	14095 	14095 	14095  25941       Ss      |   |   \\_ bash
+14095 	25941 	25941 	14095  25941       S+      | |       \\_ ./father res.txt
 
-14095 	25941 	25941 	14095  25941       S+     |   |       \\_ ./father res.txt
+**25941  25942  25941 	14095  25941       S+      | |           \\_ son1**
 
-**25941  25942 25941 	14095  25941       S+     |   |           \\_ son1**
+25941	25943   25941 	14095  25941       S+      | |           \\_ son2 res.txt
 
-25941	25943 25941 	14095  25941       S+     |   |           \\_ son2 res.txt
+**25941 25944   25941 	14095  25941       Z+      | |           \\_ [son3] <defunct>**
 
-**25941 	25944 	25941 	14095  25941       Z+     |   |           \\_ [son3] <defunct>**
+25941 	25945 	25941 	14095  25941       S+      | |           \\_ sh -c ps xjf | grep "STAT\|14095" > res.txt
 
-25941 	25945 	25941 	14095  25941       S+     |   |           \\_ sh -c ps xjf | grep "STAT\|14095" > res.txt
+25945	 25946  25941 	14095  25941       R+      | |              \\_ ps xjf
 
-25945	 25946 25941 	14095  25941       R+     |   |              \\_ ps xjf
+25945 	25947 	25941 	14095  25941       S+      | |              \\_ grep STAT\|14095
 
-25945 	25947 	25941 	14095  25941       S+     |   |              \\_ grep STAT\|14095
-
-`    `**1 	25943	25941 	14095  14095       S       son2 res.txt**
+**1 	25943	25941 	14095  14095       S      			 son2 res.txt**
 
 25943 	25950 	25941 	14095  14095       S       \\_ sh -c ps xjf | grep son2 >> res.txt
 
 25950 	25952 	25941 	14095  14095       S            \\_ grep son2
-
+```
 В файле отображаются выполняемые процессы, условное дерево порождения процессов, их атрибуты и состояния.  (В выводе ввиду однородности представленной в них информации изъяты поля TTY (для всех процессов один и тот же ассоциированный терминал – pts/1), TIME, UID – для всех процессов одинаков и равен 1000). 
 
 В выводе зафиксированы:  нормальное выполнение потомка son1; смена родителя son2 (PPID =1) и его переход в самостоятельную ветку; а также состояние zombie для son3 (ситуация, когда потомок выполняется быстрее процесса-отца, при этом отец не дожидается и никак не фиксирует завершение потомка).
@@ -1856,361 +1685,224 @@ PPID	PID  	PGID   SID     TPGID  STAT  COMMAND
 Потоки (или нити) стандартизованы в Unix-подобных системах с 2004г., в различных ОС этого семейства допускают различную интерпретацию этого термина, но во всех случаях потоки рассматриваются обязательно как часть процесса, в который они входят, и разделяют ресурсы этого процесса наравне с другими потоками этого процесса (адресное пространство, файловые дескрипторы, обработчики сигналов и т.д.). При создании новых потоков в рамках существующего процесса им  нет необходимости создавать собственную копию адресного пространства (и других ресурсов) своего родителя, поэтому требуется значительно меньше затрат, чем при создании нового дочернего процесса. В связи с этим в Linux для обозначения потоков иногда используют термин – *легкие процессы* (англ. *lightweight processes*). 
 
 Потоки одного процесса имеют общий PID, именно этот идентификатор используется при «общении» с многопоточным приложением. Функция getpid(2), возвращает значение идентификатора процесса, фактически группы входящих в него потоков, независимо от того, из какого потока она вызвана. Функции kill() waitpid() и им подобные по умолчанию также используют *идентификаторы групп потоков* (англ. *thread groups*), а не отдельных потоков. Как правило, идентификатор группы равен идентификатору первого потока, входящего в многопоточное приложение. Получить *идентификатор потока* (thread ID) можно с помощью функции gettid(2), которую нужно определить с помощью макроса \_syscall : 
-
+```c
 int tid, pid;
 
 tid = syscall(SYS\_gettid); 
-
+```
 Приведем пример распределения идентификаторов в результате выполнения программы в Linux, порождающей 10 потоков повышая приоритет посредством nice() каждому новому потоку:
-
+```c
 … :~/os/lab3$ sudo ./pool
 
 Thread 1 started
-
 Thread 2 started
-
 Thread 3 started
-
 Thread 10 started
-
 Thread 9 started
-
 Thread 6 started
-
 Thread 8 started
-
 Thread 7 started
-
 Thread 4 started
-
 Thread 5 started
 
 F S   UID   PID  PPID   LWP  C PRI  NI ADDR SZ WCHAN  CMD
-
-4 S     0      2358  2143  2358  0  80     0 -  2018 poll\_s sudo
-
-4 S     0      2359  2358  2359  0  80     0 - 21059 wait   pool
-
+4 S     0      2358  2143  2358  0  80   0 -  2018 poll\_s sudo
+4 S     0      2359  2358  2359  0  80   0 - 21059 wait   pool
 1 R     0      2359  2358  2360 86  81   1 - 21059 -      pool
-
 1 R     0      2359  2358  2361 69  82   2 - 21059 -      pool
-
 1 R     0      2359  2358  2362 58  83   3 - 21059 -      pool
-
 1 R     0      2359  2358  2363 40  84   4 - 21059 -      pool
-
 1 R     0      2359  2358  2364 42  85   5 - 21059 -      pool
-
 1 R     0      2359  2358  2365 34  86   6 - 21059 -      pool
-
 1 R     0      2359  2358  2366 25  87   7 - 21059 -      pool
-
 1 R     0      2359  2358  2367 19  88   8 - 21059 -      pool
-
 1 R     0      2359  2358  2368 16  89   9 - 21059 -      pool
-
 1 R     0      2359  2358  2369 12  90   10 - 21059 -    pool
-
-0 S     0      2370  2359  2370  0  80     0 -  567 wait   sh
-
-0 R     0      2371  2370  2371  0  80     0 -  1554 -      ps
+0 S     0      2370  2359  2370  0  80   0 -  567 wait   sh
+0 R     0      2371  2370  2371  0  80   0 -  1554 -      ps
 
 Thread1 ttid 2360,   4170.650 ms
-
 Thread2 ttid 2361,   4775.534 ms
-
 Thread3 ttid 2362,   5436.344 ms
-
 Thread4 ttid 2363,    6088.717 ms
-
 Thread 5  ttid 2364,  6867.238 ms
-
 Thread6  ttid 2365,     7244.171 ms
-
 Thread 7  ttid 2366,    7976.146 ms
-
 Thread 8  ttid 2367,    8757.861 ms
-
 Thread 9  ttid 2368,    8856.111 ms
-
 Thread 10 ttid 2369,   9024.041 ms
-
+```
 
 Очевидно, что потокам присваиваются идентификаторы (tid, начиная с 2360), следующие по значению после PID процесса (2359) запускаемого приложения pool. (В последнем столбце выведен результат подсчета времени работы каждого потока. Чем больше nice, тем медленнее работает поток, то есть тем ниже приоритет.)
 
-`	`Для создания и запуска нитей используются функции (для нити n): 
-
-
+Для создания и запуска нитей используются функции (для нити n): 
+```c
 #include <pthread.>h
+void* threadn (void\* ); 
+pthread_t  tn;
 
-`    `void\* threadn (void\* ); 
-
-`    `pthread\_t  tn;
-
-pthread\_create (&tn, NULL, threadn, NULL); 
-pthread\_join (tn, NULL); 
-
+pthread_create (&tn, NULL, threadn, NULL); 
+pthread_join (tn, NULL); 
+```
 Пример структуры кода с порождением потоков (нитей):
 
 **Thread.c**
-
+```c
 #include <signal.h>
-
 #include <pthread.h>
-
 #include <stdio.h>
 
-pthread\_t  t1, tn;
-
-void\* thread1()
-
+pthread_t  t1, tn;
+void* thread1()
 {
-
-`    `printf("Thread\_1 is started\n");
-
-`		`// здесь код, который должна выполнять нить 
-
-`    		`//   system("ps axhf > thread1.txt");
-
+	printf("Thread_1 is started\n");
+// здесь код, который должна выполнять нить 
+//   system("ps axhf > thread1.txt");
 }
 
 void\* threadn()
-
 {
-
-`        `printf("Thread\_n is started\n");
-
-`    `// здесь код, который должна выполнять нить n 
-
-`	`//system("ps axhf > threadn.txt");
-
+printf("Thread_n is started\n");
+// здесь код, который должна выполнять нить n 
+//system("ps axhf > threadn.txt");
 }
 
 void main()
-
 {	
-
-`    `system("ps axhf > file.txt");
-
-`    `pthread\_create(&t1, NULL, thread1, NULL);
-
+system("ps axhf > file.txt");
+pthread_create(&t1, NULL, thread1, NULL);
 …
-
-`    `pthread\_create(&tn, NULL, thread2, NULL);
-
-`	`system("ps axhf >> file.txt");
-
-`    `pthread\_join(t1, NULL);
-
+pthread_create(&tn, NULL, thread2, NULL);
+system("ps axhf >> file.txt");
+pthread_join(t1, NULL);
 …
-
-`    `pthread\_join(tn, NULL);
-
-`	`system("ps axhf >> file.txt");
-
+pthread_join(tn, NULL);
+`system("ps axhf >> file.txt");
 }
-
+```
 При попытке завершить поток обычным способом с помощью команды kill, *завершится **все** многопоточное приложение*. Результат будет одинаков при использовании в качестве аргумента функции как PID процесса, так и TID потоков.
 
 *Функции для задания приоритетов нитям и политики планирования*:
 
-pthread\_attr\_init - инициализация описателя атрибутов потока управления;
+`pthread_attr_init` - инициализация описателя атрибутов потока управления;
 
-pthread\_attr\_setinheritsched – установка атрибута "наследование стратегии и параметров планирования" потока управления, например, атрибут PTHREAD\_EXPLICIT\_SCHED, при котором стратегия планирования и связанные с ней атрибуты должны быть взяты из описателя атрибутов, на который указывает аргумент attr, а не наследоваться от процесса-отца;
+`pthread_attr_setinheritsched` – установка атрибута "наследование стратегии и параметров планирования" потока управления, например, атрибут `PTHREAD\_EXPLICIT\_SCHED`, при котором стратегия планирования и связанные с ней атрибуты должны быть взяты из описателя атрибутов, на который указывает аргумент attr, а не наследоваться от процесса-отца;
 
-\_attr\_setschedparam – установка атрибута "параметры планирования" потока управления, с помощью которых был задан приоритет;
+`attr_setschedparam` – установка атрибута "параметры планирования" потока управления, с помощью которых был задан приоритет;
 
-pthread\_attr\_setschedpolicy – установка атрибута "стратегия планирования" потока управления;
+`pthread_attr_setschedpolicy` – установка атрибута "стратегия планирования" потока управления;
 
-pthread\_attr\_getschedparam — получение текущего атрибута "параметры планирования" потока управления;
+`pthread_attr_getschedparam` — получение текущего атрибута "параметры планирования" потока управления;
 
-pthread\_attr\_getschedpolicy – получение текущего  атрибута "политика планирования" потока управления;
+`pthread_attr_getschedpolicy` – получение текущего  атрибута "политика планирования" потока управления;
 
-pthread\_attr\_destroy – удаление описателя атрибутов потока управления.
+`pthread_attr_destroy` – удаление описателя атрибутов потока управления.
 
 Приоритет и политику планирования для потоков можно задать и другим способом - наследуя от процесса-родителя с помощью функции 
 
-` `pthread\_attr\_setinheritsched (&attr, PTHREAD\_INHERIT\_SCHED) 
+`pthread_attr_setinheritsched (&attr, PTHREAD_INHERIT_SCHED)` 
 
 с атрибутом наследования.
 
-`	`Для исследования и анализа характеристик планирования потоков можно использовать следующий примерный программный код:
-
+Для исследования и анализа характеристик планирования потоков можно использовать следующий примерный программный код:
+```c
 #include <signal.h>
-
 #include <pthread.h>
-
 #include <stdio.h>
-
 #include <sys/types.h>
-
 #include <linux/unistd.h>
-
 #include <sys/syscall.h>
-
 #include <sched.h>
 
-pthread\_t  t1, t2;
-
-void\* thread1()
-
+pthread_t  t1, t2;
+void* thread1()
 {
+int i, count = 0;
+int tid, pid;
 
-`    `int i, count = 0;
-
-`	`int tid, pid;
-
-`	`tid = syscall(SYS\_gettid);
-
-`	`pid = getpid();
-
-`    `printf("Thread\_1 with thread id = %d and pid = %d is started\n", tid, pid);
-
-`	`// здесь размещаем собственно функциональный код нити
-
-`	`// для примера приведен простой бессмысленный код
-
-`	`for (i = 0; i < 10; i++)
-
-`    `{
-
-`		`printf("Thread\_1: %d\n", i);
-
-`    `}
-
-
-
+tid = syscall(SYS\_gettid);
+pid = getpid();
+printf("Thread_1 with thread id = %d and pid = %d is started\n", tid, pid);
+	// здесь размещаем собственно функциональный код нити
+	// для примера приведен простой бессмысленный код
+for (i = 0; i < 10; i++)
+  {
+	printf("Thread_1: %d\n", i);
+  }
 }
 
-void\* thread2()
-
+void* thread2()
 {
+int i, count = 0;
+int tid, pid;
 
-`    `int i, count = 0;
-
-`	`int tid, pid;
-
-`	`tid = syscall(SYS\_gettid);
-
-`	`pid = getpid();
-
-`    `printf("Thread\_2 with thread id = %d and pid = %d is started\n", tid, pid);
-
-// здесь размещаем собственно функциональный код нити
-
-`	`// для примера приведен простой бессмысленный код
-
-`	`for (i = 0; i < 10; i++)
-
-`   	 `{
-
-`		`printf("Thread\_2: %d\n", i);
-
-`   	 `}
-
+tid = syscall(SYS_gettid);
+pid = getpid();
+printf("Thread\_2 with thread id = %d and pid = %d is started\n", tid, pid);
+	// здесь размещаем собственно функциональный код нити
+	// для примера приведен простой бессмысленный код
+for (i = 0; i < 10; i++)
+  {
+	printf("Thread_2: %d\n", i);
+  }
 }
 
 void main()
-
 {	
+int policy;
+struct sched\_param param;	
+pthread_attr_t attr_1, attr_2;                                        
+pthread_attr_init(&attr_1);                                                      
+pthread_attr_init(&attr_2);	
+pthread_attr_setschedpolicy(&attr_1, SCHED_RR);
+pthread_attr_setschedpolicy(&attr_2, SCHED_RR);
+     /значения приоритетов лучше задавать извне – из командной строки или файла
+param.sched_priority = 10; 
+pthread_attr_setschedparam(&att\_1, &param);
+param.sched_priority = 30;
+pthread_attr_setschedparam(&attr_2, &param);
 
-`	`int policy;
+// Стратегия планирования и связанные с ней атрибуты должны быть взяты из описателя
+//атрибутов, на который указывает аргумент attr 
 
-`	`struct sched\_param param;	
-
-`	`pthread\_attr\_t attr\_1, attr\_2;                                        
-
-`   	`pthread\_attr\_init(&attr\_1);                                                      
-
-`   	`pthread\_attr\_init(&attr\_2);	
-
-`	`pthread\_attr\_setschedpolicy(&attr\_1, SCHED\_RR);
-
-`	`pthread\_attr\_setschedpolicy(&attr\_2, SCHED\_RR);
-
-`    `//значения приоритетов лучше задавать извне – из командной строки или файла
-
-`    `param.sched\_priority = 10; 
-
-`	`pthread\_attr\_setschedparam(&attr\_1, &param);
-
-`    `param.sched\_priority = 30;
-
-`	`pthread\_attr\_setschedparam(&attr\_2, &param);
-
-// Стратегия планирования и связанные с ней атрибуты должны быть взяты из описателя   //атрибутов, на который указывает аргумент attr 
-
-pthread\_attr\_setinheritsched (&attr\_1, PTHREAD\_EXPLICIT\_SCHED);	pthread\_attr\_setinheritsched (&attr\_2, PTHREAD\_EXPLICIT\_SCHED); 
+pthread_attr_setinheritsched (&attr_1, PTHREAD_EXPLICIT_SCHED);
+pthread_attr_setinheritsched (&attr_2, PTHREAD_EXPLICIT_SCHED); 
 
 // Стратегия планирования и связанные с ней атрибуты должны быть унаследованы 
-
 // Установка атрибута наследования от родителя
-
-//pthread\_attr\_setinheritsched (&attr\_1, PTHREAD\_INHERIT\_SCHED)
-
+	//pthread_attr_setinheritsched (&attr_1, PTHREAD_INHERIT_SCHED)
 // Установка статуса освобождения ресурсов
-
-`	`//pthread\_attr\_setdetachstate (&attr,PTHREAD\_CREATE\_DETACHED);	
-
-`	`pthread\_attr\_getschedparam(&attr\_1, &param);
-
-`	`pthread\_attr\_getschedpolicy(&attr\_1, &policy);
-
-`	`printf("Thread\_1's priority = %d\n", param.sched\_priority);
-
-`	`pthread\_attr\_getschedparam(&attr\_2, &param);
-
-`	`pthread\_attr\_getschedpolicy(&attr\_2, &policy);
-
-`	`printf("Thread\_2's priority = %d\n", param.sched\_priority);
-
-`	`switch (policy) {
-
-`		`case SCHED\_FIFO:
-
-`			`printf ("policy SCHED\_FIFO\n");
-
-`			`break;
-
-`		`case SCHED\_RR:
-
-`			`printf ("policy SCHED\_RR\n");
-
-`			`break;
-
-`		`case SCHED\_OTHER:
-
-`			`printf ("policy SCHED\_OTHER\n");
-
-`			`break;
-
-`		`case -1:
-
-`			`perror ("policy SCHED\_GETSCHEDULER");
-
-`			`break;
-
-`		`default:
-
-`			`printf ("policy Неизвестная политика планирования\n");
-
-`	`}
-
-`	`pthread\_create(&t1, &attr\_1, thread1, NULL);
-
-`    `pthread\_create(&t2, &attr\_2, thread2, NULL);
-
-`    `pthread\_join(t1, NULL);
-
-`    `pthread\_join(t2, NULL);
-
-`	`pthread\_attr\_destroy(&attr\_1);
-
-`	`pthread\_attr\_destroy(&attr\_2);
-
+	//pthread_attr_setdetachstate (&attr,PTHREAD_CREATE_DETACHED);	
+pthread_attr_getschedparam(&attr_1, &param);
+pthread_attr_getschedpolicy(&attr_1, &policy);
+  printf("Thread\_1's priority = %d\n", param.sched_priority);
+pthread_attr_getschedparam(&attr_2, &param);
+pthread_attr_getschedpolicy(&attr_2, &policy);
+  printf("Thread_2's priority = %d\n", param.sched_priority);
+switch (policy) {
+	case SCHED_FIFO:
+		printf ("policy SCHED_FIFO\n");
+		break;
+	case SCHED_RR:
+		printf ("policy SCHED_RR\n");
+		break;
+	case SCHED_OTHER:
+		printf ("policy SCHED_OTHER\n");
+		break;
+	case -1:
+		perror ("policy SCHED_GETSCHEDULER");
+		break;
+	default:
+		printf ("policy Неизвестная политика планирования\n");
 }
-
-
+pthread_create(&t1, &att\_1, thread1, NULL);
+pthread_create(&t2, &attr_2, thread2, NULL);
+pthread_join(t1, NULL);
+pthread_join(t2, NULL);
+pthread_attr_destroy(&attr_1);
+pthread_attr_destroy(&attr_2);
+}
+```
 **
 
 # <a name="_toc190185320"></a>**Управление процессами и потоками с использованием сигналов**
@@ -2219,7 +1911,7 @@ pthread\_attr\_setinheritsched (&attr\_1, PTHREAD\_EXPLICIT\_SCHED);	pthread\_at
 
 ` 	`*Душутина Е.В.* **Системное программное обеспечение. Межпроцессные взаимодействия в операционных системах**: учеб. пособие /Е.В. Душутина. – СПб.: Изд-во Политехн.ун-та, 2016. – 180 с.   (ISBN 978-5-7422-5401-0)
 
-[URL:http://elib.spbstu.ru/](URL:http://elib.spbstu.ru/dl/2/4953.pdf) 
+<http://elib.spbstu.ru/](URL:http://elib.spbstu.ru/dl/2/4953.pdf)> 
 
 Сигналы позволяют осуществить самый примитивный способ коммуникации между двумя процессами. Сигналы в UNIX/Linux  используются для того, чтобы: сообщить процессу о том, что возникло какое-либо событие; или необходимо обработать исключительное состояние.
 
@@ -2236,77 +1928,45 @@ pthread\_attr\_setinheritsched (&attr\_1, PTHREAD\_EXPLICIT\_SCHED);	pthread\_at
 Кроме того, с расширением стандарта POSIX и современными возможностями наращивания разрядной сетки (до шестидесяти четырех) перечень сигналов во многих ОС тоже расширился. Появился еще один тип сигналов – сигналы реального времени,  которые могут принимать значения между SIGRTMIN и SIGRTMAX включительно. POSIX требует, чтобы предоставлялось по крайней мере RTSIG\_MAX сигналов, и минимальное значение этой константы равно 8. 
 
 Ознакомиться с полным перечнем сигналов можно с помощью команды kill -l в командном интерпретаторе той реализации ОС, с которой вы работаете, например, один из возможных вариантов:
-
+```c
 $ kill –l
 
 //Базовый список 
 
-
 \1) SIGHUP 
-
 \2) SIGINT 
-
 \3) SIGQUIT
-
 \4) SIGILL 
-
 \5) SIGTRAP 
-
 \6) SIGABRT 
-
 \7) SIGBUS 
-
 \8) SIGFPE 
-
 \9) SIGKILL 
-
 \10) SIGUSR1 
-
 \11) SIGSEGV 
-
 \12) SIGUSR2 
-
 \13) SIGPIPE 
-
 \14) SIGALRM 
-
 \15) SIGTERM 
-
 \16) SIGSTKFLT 
-
 \17) SIGCHLD 
-
 \18) SIGCONT 
-
 \19) SIGSTOP 
-
 \20) SIGTSTP 
-
 \21) SIGTTIN 
-
 \22) SIGTTOU 
-
 \23) SIGURG 
-
 \24) SIGXCPU 
-
 \25) SIGXFSZ 
-
 \26) SIGVTALRM 
-
 \27) SIGPROF 
-
 \28) SIGWINCH 
-
 \29) SIGIO 
-
 \30) SIGPWR 
-
 \31) SIGSYS 
-
-
+```
 // Расширенный набор: 
-
+```c
 
 \34) SIGRTMIN 
 
@@ -2369,7 +2029,7 @@ $ kill –l
 \63) SIGRTMAX-1 
 
 \64) SIGRTMAX 
-
+```
 
 
 Следует заметить, что именование базовых сигналов, как правило, совпадает в разных Unix-подобных ОС, чего нельзя сказать о нумерации, поэтому целесообразно сначала ознакомиться со списком.
@@ -2402,19 +2062,17 @@ $ kill –l
 
 Сигнал может быть отправлен процессу либо ядром, либо другим процессом с помощью системного вызова kill():
 
-
-
-`	`#include <signal.h>	
-
-`	`int kill(pid\_t pid, int sig);	
-
+```c
+#include <signal.h>	
+int kill(pid\_t pid, int sig);	
+```
 
 
 Аргумент pid* адресует процесc, которому посылается сигнал. Аргумент sig* определяет тип отправляемого сигнала. С помощью системного вызова kill()** процесс может послать сигнал, как самому себе, так и другому процессу или группе процессов. В этом случае процесс, посылающий сигнал, должен иметь те же реальный и эффективный идентификаторы, что и процесс, которому сигнал отправляется. Разумеется, данное ограничение не распространяется на ядро или процессы, обладающие привилегиями суперпользователя. Они имеют возможность отправлять сигналы любым процессам системы.
 
 Аналогичное действие можно произвести из командной строки в терминальном режиме, используя команду интерпретатора  
 
-kill pid 
+`kill pid` 
 
 К генерации сигнала могут привести различные ситуации:
 
@@ -2422,7 +2080,7 @@ kill pid
 
 2\. Аппаратные особые ситуации, например, деление на 0, обращение недопустимой области памяти и т.д., также вызывают генерацию сигнала. Обычно эти ситуации определяются аппаратурой компьютера, и ядру посылается соответствующее уведомление (например, виде прерывания). Ядро реагирует на это отправкой соответствующего сигнала процессу, который находился в стадии выполнения, когда произошла особая ситуация.
 
-3\. Определенные программные состояния системы или ее компонентов также могут вызвать отправку сигнала. В отличие от предыдущего случая, эти условия не связаны с аппаратной частью, а имеют программный характер. В качестве примера можно привести сигнал SIGALRM, отправляемый процессу, когда срабатывает таймер, ранее установленный с помощью вызова alarm().
+3\. Определенные программные состояния системы или ее компонентов также могут вызвать отправку сигнала. В отличие от предыдущего случая, эти условия не связаны с аппаратной частью, а имеют программный характер. В качестве примера можно привести сигнал SIGALRM, отправляемый процессу, когда срабатывает таймер, ранее установленный с помощью вызова `alarm()`.
 
 Процесс может выбрать одно из трех возможных действий при получении сигнала:
 
@@ -2439,11 +2097,10 @@ kill pid
 В ОС поддерживается ряд функций, позволяющих управлять диспозицией сигналов.
 
 Наиболее простой в использовании является функция signal(). Она позволяет устанавливать и изменять диспозицию сигнала. 
-
+```c
 #include <signal.h>
-
 void (\*signal (int sig,  void (\*disp)(int)))(int);
-
+```
 Аргумент sig определяет сигнал, диспозицию которого нужно изменить. Аргумент disp определяет новую диспозицию сигнала. Возможны следующие три варианта:
 
 |Значение|Назначение|
@@ -2457,81 +2114,56 @@ void (\*signal (int sig,  void (\*disp)(int)))(int);
 Приведем пример простейшего кода, который позволяет перехватить сигнал, генерирумый в результате нажатия комбинации клавиш (Ctrl+C).
 
 // для процесса однократно
-
+```c
 #include <stdio.h>
-
 #include <signal.h>
 
 void handler()
-
 {
-
-`   `puts("^C - signal received");
-
+puts("^C - signal received");
 signal(SIGINT, SIG\_DFL); //восстановление диспозиции по умолчанию
-
 }
 
 int main()
-
 {
-
-`	`int pid, ppid;
-
-`	`pid = getpid();
-
-`	`ppid = getppid();
-
-`	`printf("Current pid = %d and ppid = %d\n", pid, ppid);
-
-`	`signal(SIGINT, handler);
-
-`	`while(1);
-
-`	`return 0;
-
+int pid, ppid;
+pid = getpid();
+ppid = getppid();
+printf("Current pid = %d and ppid = %d\n", pid, ppid);
+signal(SIGINT, handler);
+while(1);
+return 0;
 }
-
+```
 Результат выполнения следующий:
-
+```c
 user@debian:~/OS/Lab3/8$ ./main
-
 Current pid = 9873 and ppid = 6303
-
 ^C - signal received
-
 ^C
 
 user@debian:~/OS/Lab3/8 $
-
+```
 Сигнал ^C перехватывается и однократно вызывается обработчик handler, который выводит строку, оповещающую о получении сигнала, после чего возвращается обработчик SIGINT по умолчанию, результатом выполнения которого является принудительное завершение программы. Поэтому при повторном нажатии клавиш ^C, текущая программа прерывается, и выводится приглашение командной строки.
 
 Для многократного срабатывания нужно скорректировать обработчик
-
+```c
 void handler()
-
 {
+static int i = 0;	
 
-`	`static int i = 0;	
-
-`	`printf("^C - signal received, i = %d\n", i);
-
-`	`if (i++ == 5)  //количество срабатываний текущего обработчика
-
-`		`signal(SIGINT, SIG\_DFL); //восстановление стандартного
-
-`						     `//обработчика
+printf("^C - signal received, i = %d\n", i);
+if (i++ == 5)  //количество срабатываний текущего обработчика
+    signal(SIGINT, SIG\_DFL); //восстановление стандартного обработчика
 
 }
-
+```
 Более гибкое управление сигналами предоставляет функция sigaction():
-
+```c
 int sigaction( int sig,
-
-`               `const struct sigaction \* act,
-
-`               `struct sigaction \* oact );
-
+	const struct sigaction \* act,
+	struct sigaction \* oact );
+```
 Данная функция позволяет вызывающему процессу получить информацию или установить (или и то и другое) действие, соответствующее какому-либо сигналу или группе сигналов. При этом каждый сигнал ассоциируется с битом 32-х/(64-х) –разрядного  слова-маски, соответствующим номеру сигнала. 
 
 Аргумент *sig* определяет тип сигнала (все типы сигналов определены в библиотеке signal.h). 
@@ -2583,133 +2215,85 @@ void handler(int signo, siginfo\_t\* info, void\* other);
 Ветвление происходит сразу же за вызовом fork(). Если он вернул 0, значит, выполняется код программы-сына, иначе — код программы отца.
 
 Исходный код (разместим в файле sigExam.c):
-
+```c
 #include <stdio.h>
-
 #include <signal.h>
-
 #include <unistd.h>
-
 #include <stdlib.h>
 
 static void sigHandler(int sig) {
-
-`	`printf("Catched signal %s\n",sig == SIGUSR1 ? "SIGUSR1" : "SIGUSR2");
-
-`	`printf("Parent = %d\n",getppid());
-
-`	`// востанавливаем старую диспозицию
-
-`	`signal(sig,SIG\_DFL);
-
+	printf("Catched signal %s\n",sig == SIGUSR1 ? "SIGUSR1" : "SIGUSR2");
+	printf("Parent = %d\n",getppid());
+		// востанавливаем старую диспозицию
+	signal(sig,SIG\_DFL);
 }
 
 int main() {
+	printf("\nFather started: pid = %i,ppid = %i\n",getpid(),getppid());
+	signal(SIGUSR1,sigHandler);
+	signal(SIGUSR2,sigHandler);
+	signal(SIGINT,SIG\_DFL);
+	signal(SIGCHLD,SIG\_IGN);
 
-`	`printf("\nFather started: pid = %i,ppid = %i\n",getpid(),getppid());
-
-`	`signal(SIGUSR1,sigHandler);
-
-`	`signal(SIGUSR2,sigHandler);
-
-`	`signal(SIGINT,SIG\_DFL);
-
-`	`signal(SIGCHLD,SIG\_IGN);
-
-`	`int forkRes = fork();
-
-`	`if(forkRes == 0) {
-
-`	`// программа сын
-
-`	`printf("\nSon started: pid = %i,ppid = %i\n",getpid(),getppid());
-
-`	`// отправляем сигналы отцу
-
-`	`if(kill(getppid(),SIGUSR1) != 0) {
-
-`		`printf("Error while sending SIGUSR1\n");
-
-`		`exit(1);
-
-`	`}
-
-`	`printf("Successfully sent SIGUSR1\n");
-
-`	`return 0;
-
-`	`}
-
-`	`// программа отец
-
-`	`wait(NULL);
-
-`	`// ждем сигналов
-
-`	`for(;;){
-
-`		`pause();
-
-`	`}	
-
-`	`return 0;
-
+	int forkRes = fork();
+	if(forkRes == 0) {
+			// программа сын
+		printf("\nSon started: pid = %i,ppid = %i\n",getpid(),getppid());
+			// отправляем сигналы отцу
+		if(kill(getppid(),SIGUSR1) != 0) {
+			printf("Error while sending SIGUSR1\n");
+			exit(1);
+		}
+	printf("Successfully sent SIGUSR1\n");
+	return 0;
 }
+// программа отец
+	wait(NULL);
+		// ждем сигналов
+	for(;;){
+		pause();
+	}	
 
+	return 0;
+}
+```
 Скомпилируем и выполним программу:
-
+```c
 dе@dе:~/lab4$ cc -o sigExam sigExam.c
-
 dе@dе:~/lab4$ ./sigExam 
-
 Father started: pid = 14589,ppid = 12231
-
 Son started: pid = 14590,ppid = 14589
-
 Successfully sent SIGUSR1
-
 Catched signal SIGUSR1
-
 Parent = 12231
-
+```
 Процесс-потомок отправил сигнал SIGUSR1, а процесс-отец его успешно принял. Отправим еще 3 сигнала процессу-отцу: SIGCHLD, SIGUSR2, SIGINT:
-
+```c
 dе@dе:~/lab4/sig$ kill -SIGUSR2 14589
-
 dе@dе:~/lab4/sig$ kill -SIGCHLD 14589
-
 dе@dе:~/lab4/sig$ kill -SIGINT 14589
-
+```
 Результат:
-
+```c
 Catched signal SIGUSR2
-
 Parent = 12231
-
 de@de:~/lab4/sig$ 
-
+```
 Сигнал SIGUSR2 также был «пойман», на сигнал SIGCHLD не последовало никакой реакции (так как мы задали для него реакцию игнорирования), и сигнал SIGINT привел к завершению работы.
 
 Запустим программу еще раз и дважды отправим ей сигнал SIGUSR2:
-
+```c
 de@de:~/lab4/sig$ ./sigExam 
 
 Father started: pid = 16225,ppid = 12231
-
 Son started: pid = 16226,ppid = 16225
-
 Successfully sent SIGUSR1
-
 Catched signal SIGUSR1
-
 Parent = 12231
-
 Catched signal SIGUSR2
-
 Parent = 12231
-
 User defined signal 2
-
+```
 В результате первый сигнал SIGUSR2 был «пойман», а второй обработался по умолчанию. Это происходит потому, что в обработчике после первого приема сигнала происходит восстановление диспозиции сигналов. Аналогичная ситуация была бы при двукратной отправке процессу сигнала SIGUSR1.
 
 **Для самостоятельного исследования** повторите эксперимент с другими сигналами
@@ -2733,95 +2317,57 @@ User defined signal 2
 Напомним, что сигнал SIGINT можно генерировать несколькими способами: комбинацией клавиш CTRL C, командой kill из командной строки или системной функцией kill().
 
 Исходный код (sigact.c):
-
+```c
 #include <stdio.h>
-
 #include <signal.h>
-
 #include <sys/types.h>
-
 #include <sys/stat.h>
-
 #include <unistd.h>
-
 #include <stdlib.h>
-
 #include <fcntl.h>
 
 void (\*mysig(int sig,void (\*hnd)(int)))(int) {
-
-`	`// надежная обработка сигналов
-
-`	`struct sigaction act,oldact;
-
-`	`act.sa\_handler = hnd;
-
-`	`sigemptyset(&act.sa\_mask);
-
-`	`sigaddset(&act.sa\_mask,SIGINT);
-
-`	`act.sa\_flags = 0;
-
-`	`if(sigaction(sig,&act,0) < 0)
-
-`		`return SIG\_ERR;
-
-`	`return act.sa\_handler;
-
+// надежная обработка сигналов
+	struct sigaction act,oldact;
+	act.sa\_handler = hnd;
+	sigemptyset(&act.sa\_mask);
+	sigaddset(&act.sa\_mask,SIGINT);
+	act.sa\_flags = 0;
+		if(sigaction(sig,&act,0) < 0)
+			return SIG\_ERR;
+return act.sa\_handler;
 }
 
 void hndUSR1(int sig) {
-
-`	`if(sig != SIGUSR1) {
-
-`		`printf("Catched bad signal %d\n",sig);
-
-`		`return;
-
-`	`}
-
-`	`printf("SIGUSR1 catched\n");
-
-`	`sleep(60);
-
+	if(sig != SIGUSR1) {
+		printf("Catched bad signal %d\n",sig);
+	return;
+	}
+	printf("SIGUSR1 catched\n");
+	sleep(60);
 }
 
 int main() {
-
-`	`mysig(SIGUSR1,hndUSR1);
-
-`	`for(;;) {
-
-`		`pause();
-
-`	`}
-
-`	`return 0;
-
+	mysig(SIGUSR1,hndUSR1);
+	for(;;) {
+		pause();
+	}
+	return 0;
 }
-
+```
 Результаты выполнения:
-
+```c
 de@de:~/lab4/sig$ cc -w -o sigact sigact.c
-
 de@de:~/lab4/sig$ ./sigact &
-
 [1] 25329
-
 de@de:~/lab4/sig$ kill -SIGUSR1 %1
-
 SIGUSR1 catched
-
 de@de:~/lab4/sig$ kill -SIGINT %1
-
 de@de:~/lab4/sig$ jobs
-
 [1]+  Running                 ./sigact &
-
 de@de:~/lab4/sig$ jobs
-
 [1]+  Interrupt               ./sigact
-
+```
 Чтобы иметь возможность отправить сигналы с терминала следует запустить программу в фоновом режиме (вторая строчка под рубрикой «результаты выполнения»). По результатам сигнал SIGUSR1 принят корректно, но после посылки сигнала SIGINT программа продолжала выполняться еще минуту, и только после этого завершилась. В этом отличие надежной обработки сигналов от ненадежной: есть возможность отложить прием некоторых других сигналов. Отложенные таким образом сигналы записываются в маску PENDING и обрабатываются после завершения обработки сигналов, которые отложили обработку. 
 
 Остановимся на этом чуть подробнее. Сигналы можно блокировать и разблокировать. Когда сигнал заблокирован, его обработчик не вызывается, даже если имеется сигнал, требующий обработки. Сигнал как бы ожидает обработки (pending signal - "сигнал, ожидающий обработки", "висячий сигнал"). Обработчик сигнала будет вызван сразу, как только процесс разблокирует этот сигнал. Каждый сигнал в каждый момент времени у каждого процесса либо заблокирован, либо разблокирован. *Блокировка* сигнала означает *временное игнорирование* сигнала. Отличие от диспозиции игнорирования в том, что если процесс никогда не хочет получать данный сигнал, он его игнорирует, т.е. ОС при возникновении данного сигнала для данного процесса его просто отменяет (аннулирует). Если же для процесса нежелательно получать тот или иной сигнал лишь в течение некоторого конечного интервала времени, то он его блокирует, а ОС сохраняет информацию о наличии сигнала для данного процесса и доставляет его (сигнал) процессу, когда последний разблокирует этот сигнал. 
@@ -2839,49 +2385,31 @@ de@de:~/lab4/sig$ jobs
 Исходный код программы остается прежним за исключением содержимого обработчика, его и приведем.
 
 Исходный код** обработчика сигнала
-
+```c
 void hndUSR1(int sig) {
-
-`	`if(sig != SIGUSR1) {
-
-`		`printf("Catched bad signal %d\n",sig);
-
-`		`return;
-
-`	`}
-
-`	`printf("SIGUSR1 catched, sending SIGINT\n");
-
-`	`kill(getpid(),SIGINT);
-
-`	`sleep(10);
-
+	if(sig != SIGUSR1) {
+		printf("Catched bad signal %d\n",sig);
+	return;
+   }
+	printf("SIGUSR1 catched, sending SIGINT\n");
+	kill(getpid(),SIGINT);
+	sleep(10);
 }
-
+```
 Результаты выполнения программы:
-
+```c
 de@de:~/lab4/sig$ cc -w -o sigact2 sigact2.c
-
 de@de:~/lab4/sig$ ./sigact2 &
-
 [1] 28822
-
 de@de:~/lab4/sig$ kill -SIGUSR1 %1
-
 de@de:~/lab4/sig$ SIGUSR1 catched, sending SIGINT
-
 jobs
-
 [1]+  Running                 ./sigact2 &
-
 de@de:~/lab4/sig$ jobs
-
 [1]+  Running                 ./sigact2 &
-
 de@de:~/lab4/sig$ kill -SIGINT %1
-
 [1]+  Interrupt               ./sigact2
-
+```
 При генерации сигнала (в данном случае SIGINT) из обработчика другого сигнала обработка сгенерированного сигнала задерживается до конца выполнения текущего обработчика (как и в предыдущем эксперименте).
 
 При получении сигнала *активным* процессом, он продолжает работать, а *пассивный* – превращается  в зомби. Это легко демонстрируется экспериментально. 
@@ -2903,321 +2431,215 @@ de@de:~/lab4/sig$ kill -SIGINT %1
 Программы родителя и потомка задаются в одном файле, где ветвление происходит после вызова fork()  (если он вернул 0, значит выполняется код программы-сына, которая посылает сигнал родительскому процессу, иначе — код программы-отца). При этом, за счет использования fork() потомок должен наследовать диспозицию сигналов от родителя.
 
 **sig\_father.c**
-
+```c
 #include <stdio.h>
-
 #include <stdlib.h>
-
 #include <signal.h>
-
 static void handler(int sig) {
-
-`	`printf("Catched signal %s\n", sig == SIGUSR1 ? "SIGUSR1" : "SIGUSR2");
-
-`	`printf("Parent = %d\n", getppid());
-
-`	`signal(sig, SIG\_DFL);
-
-}
+	printf("Catched signal %s\n", sig == SIGUSR1 ? "SIGUSR1" : "SIGUSR2");
+	printf("Parent = %d\n", getppid());
+	signal(sig, SIG\_DFL);
+	}
 
 int main() {
-
-`	`printf("Father's params: pid = %d, ppid = %d\n", getpid(), getppid());
-
-`	`signal(SIGUSR1, handler);
-
-`	`signal(SIGUSR2, handler);
-
-`	`if (fork() == 0) {
-
-`		`printf("Son's params: pid = %d, ppid = %d\n", getpid(), getppid());
-
-`		`while(1)
-
-`			`pause(); 		
-
-`		`return 0;
-
-`	`}
-
-`	`wait(NULL);
-
-`	`while(1)
-
-`		`pause();
-
-`	`return 0;
-
+printf("Father's params: pid = %d, ppid = %d\n", getpid(), getppid());
+ signal(SIGUSR1, handler);
+ signal(SIGUSR2, handler);
+if (fork() == 0) {
+	printf("Son's params: pid = %d, ppid = %d\n", getpid(), getppid());
+	while(1)
+		pause(); 		
+	return 0;
+	}
+wait(NULL);
+while(1)
+	pause();
+return 0;
 }
-
+```
 Результаты выполнения программы:
 
 Запустим выполнение программы в фоновом режиме.
-
+```c
 user@debian:~/OS/Lab3/8/signals$ ./father &
 
 [1] 30793
-
 Father's params: pid = 30793, ppid = 29981
-
 Son's params: pid = 30794, ppid = 30793
-
+```
 Отправим сигнал процессу-родителю:
-
+```c
 user@debian:~/OS/Lab3/8/signals$ kill -SIGUSR1 30793
 
 Catched signal SIGUSR1
-
 Parent = 29981
-
+```
 Теперь отправим тот же сигнал процессу-потомку:
-
+```c
 user@debian:~/OS/Lab3/8/signals$ kill -SIGUSR1 30794
-
-Catched signal SIGUSR1
-
-Parent = 30793
-
+	Catched signal SIGUSR1
+	Parent = 30793
 user@debian:~/OS/Lab3/8/signals$ ps f
-
-`  `PID TTY      STAT   TIME COMMAND
-
+PID TTY      STAT   TIME COMMAND
 30683 pts/1    Ss+    0:00 bash
-
 29981 pts/0    Ss     0:01 bash
-
 30793 pts/0    S      0:00  \\_ ./father
-
 30794 pts/0    S      0:00  |   \\_ ./father
-
 30796 pts/0    R+     0:00  \\_ ps f
-
+```
 При отправке сигнала разным процессам, результат совпадает, потомок использует тот же обработчик, что свидетельствует  о наследовании диспозиции при порождении потомка на этапе  fork().
 
 Рассмотрим еще один пример:
-
+```c
 user@debian:~/OS/Lab3/8/signals$ ./father &
 
 [1] 30823
-
 Father's params: pid = 30823, ppid = 29981
-
 Son's params: pid = 30824, ppid = 30823
 
 user@debian:~/OS/Lab3/8/signals$ kill -SIGUSR1 30823
 
 Catched signal SIGUSR1
-
 Parent = 29981
 
 user@debian:~/OS/Lab3/8/signals$ kill -SIGUSR1 30823
-
 [1]+  Определяемый пользователем сигнал 1         ./father
 
 user@debian:~/OS/Lab3/8/signals$ kill -SIGUSR1 30824
-
-Catched signal SIGUSR1
-
-Parent = 1
+	Catched signal SIGUSR1
+	Parent = 1
 
 user@debian:~/OS/Lab3/8/signals$ kill -SIGUSR1 30824
-
+```
 Здесь видно, что диспозиция сигналов для дочернего процесса, созданного с помощью fork(), сохраняется даже после завершения работы процесса-родителя.
 
 Повторим эксперимент для процесса-родителя, порождающего дочерний процесс с помощью пары вызовов fork() и exec():
 
 **sig\_father.c**
-
+```c
 #include <stdio.h>
-
 #include <stdlib.h>
-
 #include <signal.h>
-
 #include <unistd.h>
 
 static void handler(int sig) {
-
-`	`printf("Catched signal %s\n", sig == SIGUSR1 ? "SIGUSR1" : "SIGUSR2");
-
-`	`printf("Parent = %d\n", getppid());
-
-`	`signal(sig, SIG\_DFL);
-
+	printf("Catched signal %s\n", sig == SIGUSR1 ? "SIGUSR1" : "SIGUSR2");
+	printf("Parent = %d\n", getppid());
+	signal(sig, SIG\_DFL);
 }
 
 int main() {
-
-`	`printf("Father's params: pid = %d, ppid = %d\n", getpid(), getppid());
-
-`	`signal(SIGUSR1, handler);
-
-`	`signal(SIGUSR2, handler);
-
-`	`if (fork() == 0)
-
-`		`execl("son", "son", NULL);
-
-`	`wait(NULL);
-
-`	`while(1)
-
-`		`pause();
-
-`	`return 0;
-
+	printf("Father's params: pid = %d, ppid = %d\n", getpid(), getppid());
+	signal(SIGUSR1, handler);
+	signal(SIGUSR2, handler);
+	if (fork() == 0)
+		execl("son", "son", NULL);
+	wait(NULL);
+	while(1)
+		`pause();
+	return 0;
 }
-
+```
 **sig\_son.c**
-
+```c
 #include <stdio.h>
-
 #include <stdlib.h>
-
 #include <signal.h>
 
-
-
 int main() {
-
-`	`printf("Son's params: pid = %d, ppid = %d\n", getpid(), getppid());
-
-`	`while(1)
-
-`		`pause();
-
-`	`return 0;
-
+	printf("Son's params: pid = %d, ppid = %d\n", getpid(), getppid());
+	while(1)
+		pause();
+	return 0;
 }
-
+```
 По сравнению с предыдущей программой потомок загружается из файла son.c. Порождение потомка происходит с использованием двух функций fork() и execl().
-
+```c
 user@debian:~/OS/Lab3/8/signals/2$ gcc -o son son.c
-
 user@debian:~/OS/Lab3/8/signals/2$ gcc -o father father.c
-
 user@debian:~/OS/Lab3/8/signals/2$ ./father &
-
-[1] 30907
-
-Father's params: pid = 30907, ppid = 29981
-
-Son's params: pid = 30908, ppid = 30907
-
-Отправка сигнала SIGUSR1 процессу-родителю:
+	[1] 30907
+	Father's params: pid = 30907, ppid = 29981
+	Son's params: pid = 30908, ppid = 30907
+	Отправка сигнала SIGUSR1 процессу-родителю:
 
 user@debian:~/OS/Lab3/8/signals/2$ kill -SIGUSR1 30907
-
-Catched signal SIGUSR1
-
-Parent = 29981
+	Catched signal SIGUSR1
+	Parent = 29981
 
 user@debian:~/OS/Lab3/8/signals/2$ ps f
-
-`  `PID TTY      STAT   TIME COMMAND
-
+PID   TTY      STAT   TIME COMMAND
 30683 pts/1    Ss+    0:00 bash
-
 29981 pts/0    Ss     0:01 bash
-
 30907 pts/0    S      0:00  \\_ ./father
-
 30908 pts/0    S      0:00  |   \\_ son
-
 30910 pts/0    R+     0:00  \\_ ps f
-
+```
 Отправка того же сигнала процессу-потомку:
-
+```c
 user@debian:~/OS/Lab3/8/signals/2$ kill -SIGUSR1 30908
-
 user@debian:~/OS/Lab3/8/signals/2$ ps f
 
-`  `PID TTY      STAT   TIME COMMAND
-
+PID TTY      STAT   TIME COMMAND
 30683 pts/1    Ss+    0:00 bash
-
 29981 pts/0    Ss     0:01 bash
-
 30907 pts/0    S      0:00  \\_ ./father
-
 30912 pts/0    R+     0:00  \\_ ps f
 
 user@debian:~/OS/Lab3/8/signals/2$ kill -SIGUSR1 30907
-
 [1]+ Определяемый пользователем сигнал 1      ./father
-
+```
 В соответствии с полученными результатами при отправке сигнала процессу-отцу срабатывает его обработчик, а при отправке того же сигнала процессу-потомку диспозиция этого сигнала не сохраняется, и срабатывает обработчик по умолчанию. Из этого можно сделать вывод, что при создании процесса с помощью fork() и exec() диспозиция сигналов не наследуется.
 
 **nohup(1)** — утилита, позволяющая запустить команду, невосприимчивую к сигналам потери связи (hungup), и чей вывод будет направлен не на терминал, а в файл nohup.out. Таким образом, команда будет выполняться в фоновом режиме даже тогда, когда пользователь выйдет из системы.
 
 Запустим длительный процесс с помощью nohup:
-
+```c
 user@debian:~/OS/Lab3/10/5$ nohup ./main &
-
 [1] 3257
 
 user@debian:~/OS/Lab3/10/5$ nohup  ввод игнорируется, вывод добавляется в «nohup.out»
-
+```
 main.c
-
+```c
 #include <stdio.h>
-
 void main()
-
 {
-
-`    `int i;
-
-`	`for(i = 0; i < 999999999999; i++);
-
+	int i;
+	for(i = 0; i < 999999999999; i++);
 }
-
+```
 Завершим сеанс работы и снова войдем в систему.
 
 При выводе команды ps xa получим следующий результат:
-
+```c
 user@debian:~$ ps xa
-
-`  `PID TTY      STAT   TIME COMMAND
-
+PID TTY      STAT   TIME COMMAND
 ...
-
-` `3257 ?        R      0:51 ./main
-
+3257 ?        R      0:51 ./main
 …
-
+```
 т.е. при выходе из системы, данный процесс не завершился: команда nohup позволила данной команде игнорировать сигнал SIGHUP, который рассылается процессам при выходе из системы.
 
 При выполнении следующей программы с командой nohup:
-
+```c
 #include <stdio.h>
-
 void main()
-
 {
-
-`    `int i;
-
-`	`for(i = 0; i < 10; i++)
-
-`		`printf("%d ", i);
-
+int i;
+	for(i = 0; i < 10; i++)
+		printf("%d ", i);
 }
-
+```
 результат выводится в nohup.out:
-
+```c
 $ nohup ./main &
-
 [1] 4876
-
 $ nohup: ввод игнорируется, вывод добавляется в «nohup.out»
-
 cat nohup.out
-
 0 1 2 3 4 5 6 7 8 9
-
 ` `[1]+  Exit 2                  nohup ./main
-
+```
 # <a name="_toc190185322"></a>**Сигналы POSIX реального времени**
 
 Некоторые реализации POSIX ОС могут обрабатывать все сигналы как сигналы реального времени, но для UNIX-подобных ОС это не является обязательным. Если мы хотим, чтобы сигналы ***гарантированно*** обрабатывались как сигналы реального времени, мы должны: 
@@ -3228,22 +2650,18 @@ cat nohup.out
 
 сформировать и указать обработчик сигнала реального времени, устанавливаемый с флагом SA\_SIGINFO, объявляется как:
 
-void func(int *signo,* siginfo\_t *\*info,* void *\*context*);   где
+`void func(int signo, siginfo_t *info, void *context); `  где
 
 *signo —* номер сигнала, 
 
-siginfo\_t — структура, определяемая как
-
+siginfo_t — структура, определяемая как
+```c
 typedef struct {
-
-` 	`int si\_signo; /\* то же, что и signo \*/
-
-`	`int si\_code; /\* SI\_{USER,QUEUE,TIMER,ASYNCIO,MESGQ} \*/
-
-` 	`union sigval si\_value; /\* целое или указатель от отправителя \*/
-
-`	`} siginfo\_t;
-
+int si_signo; //то же, что и signo 
+int si_code; //SI_{USER,QUEUE,TIMER,ASYNCIO,MESGQ} 
+`union sigval si_value; //целое или указатель от отправителя
+} siginfo_t;
+```
 на что указывает *context* — зависит от реализации.
 
 Таким образом, сигналы реального времени несут больше информации, чем прочие сигналы (при отправке сигнала, не обрабатываемого как сигнал реального времени, единственным аргументом обработчика является номер сигнала).
@@ -3261,180 +2679,109 @@ SIGRTMIN и SIGRTMAX – это еще и макросы  (вызывающие 
 Напомним, если одновременно посылается несколько обычных одинаковых сигналов (из первых 32-х сигналов полной линейки), то они будут «слиты» в один сигнал, т. е. обработчик вызовется только один раз.
 
 Сигналы реального времени обеспечивают доставку множества одинаковых, отосланных поочередно, сигналов (они не будут сливаться) и дают гарантию упорядоченной доставки: если поочередно послать несколько сигналов реального времени, то они все будут обработаны, а если отправленные сигналы различны, то они будут упорядочены — сигналы с меньшим номером придут и будут обработаны раньше, чем сигналы с большим. Это легко проверить опытным путем, ниже представлена примерная структура кода, который можно использовать для отправки сигналов разных типов из одной нити в другую и дальнейшего анализа приоритетности сигналов.
-
+```c
 #include <signal.h>
-
 #include <pthread.h>
-
 #include <stdio.h>
-
 #include <sys/types.h>
-
 #include <linux/unistd.h>
-
 #include <sys/syscall.h>
 
-pthread\_t t1, t2;
-
+pthread_t t1, t2;
 void hnd (int sig) {
+	if(sig == SIGUSR1) {
+	printf("Catched SIGUSR1 %d\n",sig);
+	signal(sig,hnd); //восстановление диспозиции с нашим обработчиком
+	return;
+	}
 
-`	`if(sig == SIGUSR1) {
+if(sig == SIGUSR2) {
+	printf("Catched SIGUSR2  %d\n",sig);
+	signal(sig, hnd);
+	return;
+}
 
-`		`printf("Catched SIGUSR1 %d\n",sig);
-
-`		`signal(sig,hnd); //восстановление диспозиции с нашим обработчиком
-
-`		`return;
-
-`	`}
-
-`	`if(sig == SIGUSR2) {
-
-`		`printf("Catched SIGUSR2  %d\n",sig);
-
-`		`signal(sig, hnd);
-
-`		`return;
-
-`	`}
-
-`	`if(sig == SIGRTMIN+1) {
-
-`		`printf("Catched SIGRTMIN+1  %d\n",sig);
-
-`		`signal(sig, hnd);
-
-`		`return;
-
-`	`}
+if(sig == SIGRTMIN+1) {
+	printf("Catched SIGRTMIN+1  %d\n",sig);
+	signal(sig, hnd);
+	return;
+}
 
 // далее аналогично для других сигналов
-
 …
-
 }
 
 void\* thread1()
-
 {
+int i, count = 0;
+int tid, pid;
 
-`    `int i, count = 0;
-
-`	`int tid, pid;
-
-`	`tid = syscall(SYS\_gettid);
-
-`	`pid = getpid();
-
-`    `printf("Thread\_1 with thread id = %d and pid = %d is started\n", tid, pid);
-
-`	`int n=2; //можно установить любым
+tid = syscall(SYS_gettid);
+pid = getpid();
+   printf("Thread_1 with thread id = %d and pid = %d is started\n", tid, pid);
+int n=2; //можно установить любым
 
 for (i = 0; i < n; i++)
-
-`    	`{
-
-`        	`count += 1;
-
-`	`printf("Thread\_1: step %d \n", count);
-
+{
+	count += 1;
+	printf("Thread_1: step %d \n", count);
 sleep(5);
 
 // отправка обычных сигналов из первой нити во вторую
-
-`	`pthread\_kill(t2, SIGUSR2); 
-
-`	`pthread\_kill(t2, SIGUSR1);	
-
-`	`pthread\_kill(t2, SIGUSR1); 
-
-`	`pthread\_kill(t2, SIGRTMIN+3);// отправка сигналов реального времени
-
-`	`pthread\_kill(t2, SIGRTMIN+1);	
-
-`	`pthread\_kill(t2, SIGRTMIN+5);
-
-` 	`pthread\_kill(t2, SIGRTMIN+1);	
-
-`    `}
-
-`  `}
+pthread_kill(t2, SIGUSR2); 
+pthread_kill(t2, SIGUSR1);	
+pthread_kill(t2, SIGUSR1); 
+pthread_kill(t2, SIGRTMIN+3);// отправка сигналов реального времени
+pthread_kill(t2, SIGRTMIN+1);	
+pthread_kill(t2, SIGRTMIN+5);
+pthread_kill(t2, SIGRTMIN+1);	
+ }
+}
 
 void\* thread2()
-
 {
+int i, count = 0;
+int tid, pid;
 
-`    `int i, count = 0;
-
-`    `int tid, pid;
-
-`    `tid = syscall(SYS\_gettid);
-
-`    `pid = getpid();
-
-`    `printf("Thread\_2 with thread id = %d and pid = %d is started\n", tid, pid);
-
-`    `int m=10; //можно подобрать на свое усмотрение, чтобы все сигналы //успевали доставиться 
-
-`    `for (i = 0; i < m; i++) 
-
-`    `{
-
-`        `count += 1;
-
-`		`sleep(1);
-
-`		`printf("Thread\_2: step %d\n", count);
-
-`    `}
-
+tid = syscall(SYS_gettid);
+pid = getpid();
+   printf("Thread_2 with thread id = %d and pid = %d is started\n", tid, pid);
+int m=10; //можно подобрать на свое усмотрение, чтобы все сигналы //успевали доставиться 
+for (i = 0; i < m; i++) 
+	{
+	count += 1;
+	sleep(1);
+	printf("Thread_2: step %d\n", count);
+	}
 }
 
 void main()
-
 {	
-
-`    `pthread\_create(&t1, NULL, thread1, NULL);
-
-`    `pthread\_create(&t2, NULL, thread2, NULL);
-
-`    `pthread\_join(t1, NULL);
-
-`    `pthread\_join(t2, NULL);
-
+pthread_create(&t1, NULL, thread1, NULL);
+pthread_create(&t2, NULL, thread2, NULL);
+pthread_join(t1, NULL);
+pthread_join(t2, NULL);
 }
-
+```
 Как уже говорилось ранее, при отправке сигнала потоку посредством команды или функции kill() происходит завершение не только этого потока, но и всего многопоточного приложения в целом. Для завершения отдельной нити необходимо использовать функции, ориентированные на работу с потоками (они были описаны ранее), а также функцию pthread\_exit(). Модификация обработчика сигнала посредством дополнения его этой функцией, позволит завершать нить по факту срабатывания обработчика в ответ на возникновение сигнала: 
-
+```c
 void handler()
-
 {
-
-`	`puts("Signal's received");
-
-`	`**pthread\_exit**(NULL);
-
+puts("Signal's received");
+pthread_exit(NULL);
 }
 
-void\* threadn ()
-
+void* threadn ()
 {
-
-`    	`int i, count = 0;
-
-`	`int tid, pid;
-
-`	`tid = syscall(SYS\_gettid);
-
-`	`pid = getpid();
-
-`    	`// здесь размещаем собственно полезный код нити
-
-`	`signal(SIGUSR1, handler);
-
-`	`}
-
-Вызов pthread\_exit приводит к завершению нити, вызвавшей эту функцию. Так как в программе возникновение сигнала ожидается в threadn(), то именно этот поток и завершается в результате выполнения обработчика в его контексте, а другие потоки продолжают выполнение.
+int i, count = 0;
+int tid, pid;
+	tid = syscall(SYS_gettid);
+	pid = getpid();
+		// здесь размещаем собственно полезный код нити
+	signal(SIGUSR1, handler);
+}
+```
+Вызов pthread_exit приводит к завершению нити, вызвавшей эту функцию. Так как в программе возникновение сигнала ожидается в threadn(), то именно этот поток и завершается в результате выполнения обработчика в его контексте, а другие потоки продолжают выполнение.
 
 Далее изложение по ссылке:
 
