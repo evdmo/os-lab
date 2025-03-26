@@ -259,57 +259,47 @@ int main() {
 
 Скомпилируем и выполним программу:
 
+```c
 dе@dе:~/lab4$ cc -o sigExam sigExam.c
-
 dе@dе:~/lab4$ ./sigExam 
-
 Father started: pid = 14589,ppid = 12231
-
 Son started: pid = 14590,ppid = 14589
-
 Successfully sent SIGUSR1
-
 Catched signal SIGUSR1
-
 Parent = 12231
+```
 
-Процесс-потомок отправил сигнал SIGUSR1, а процесс-отец его успешно принял. Отправим еще 3 сигнала процессу-отцу: SIGCHLD, SIGUSR2, SIGINT:
+Процесс-потомок отправил сигнал SIGUSR1, а процесс-отец его успешно принял. 
+Отправим еще 3 сигнала процессу-отцу: SIGCHLD, SIGUSR2, SIGINT:
 
+```c
 dе@dе:~/lab4/sig$ kill -SIGUSR2 14589
-
 dе@dе:~/lab4/sig$ kill -SIGCHLD 14589
-
 dе@dе:~/lab4/sig$ kill -SIGINT 14589
+```
 
 Результат:
-
+```c
 Catched signal SIGUSR2
-
 Parent = 12231
-
 de@de:~/lab4/sig$ 
+```
 
 Сигнал SIGUSR2 также был «пойман», на сигнал SIGCHLD не последовало никакой реакции (так как он был проигнорирован), и сигнал SIGINT привел к завершению работы.
 
 Запустим программу еще раз и дважды отправим ей сигнал SIGUSR2:
 
+```c
 de@de:~/lab4/sig$ ./sigExam 
-
 Father started: pid = 16225,ppid = 12231
-
 Son started: pid = 16226,ppid = 16225
-
 Successfully sent SIGUSR1
-
 Catched signal SIGUSR1
-
 Parent = 12231
-
 Catched signal SIGUSR2
-
 Parent = 12231
-
 User defined signal 2
+```
 
 В результате первый сигнал был «пойман», второй обработался по умолчанию. Это происходит потому, что в обработчике прерываний после первого приема сигнала происходит восстановление диспозиции сигналов. Аналогичная ситуация была бы при двукратной отправке процессу сигнала SIGUSR1.
 
@@ -327,93 +317,63 @@ User defined signal 2
 
 **Исходный код** (sigact.c):
 
+```c
 #include <stdio.h>
-
 #include <signal.h>
-
 #include <sys/types.h>
-
 #include <sys/stat.h>
-
 #include <unistd.h>
-
 #include <stdlib.h>
-
 #include <fcntl.h>
 
 void (\*mysig(int sig,void (\*hnd)(int)))(int) {
-
 `	`// надежная обработка сигналов
-
 `	`struct sigaction act,oldact;
-
 `	`act.sa\_handler = hnd;
-
 `	`sigemptyset(&act.sa\_mask);
-
 `	`sigaddset(&act.sa\_mask,SIGINT);
-
 `	`act.sa\_flags = 0;
-
 `	`if(sigaction(sig,&act,0) < 0)
-
 `		`return SIG\_ERR;
-
 `	`return act.sa\_handler;
-
 }
 
 void hndUSR1(int sig) {
-
 `	`if(sig != SIGUSR1) {
-
 `		`printf("Catched bad signal %d\n",sig);
-
 `		`return;
-
 `	`}
 
 `	`printf("SIGUSR1 catched\n");
-
 `	`sleep(60);
-
 }
 
 int main() {
-
 `	`mysig(SIGUSR1,hndUSR1);
-
 `	`for(;;) {
-
 `		`pause();
-
 `	`}
-
 `	`return 0;
-
 }
+```
 
 **Результаты выполнения**:
 
+```c
 de@de:~/lab4/sig$ cc -w -o sigact sigact.c
-
 de@de:~/lab4/sig$ ./sigact &
-
 [1] 25329
 
 de@de:~/lab4/sig$ kill -SIGUSR1 %1
-
 SIGUSR1 catched
 
 de@de:~/lab4/sig$ kill -SIGINT %1
-
 de@de:~/lab4/sig$ jobs
-
 [1]+  Running                 ./sigact &
 
 de@de:~/lab4/sig$ jobs
-
 [1]+  Interrupt               ./sigact
+```
 
 Чтобы иметь возможность отправить сигналы с терминала следует запустить программу в фоновом режиме. По результатам сигнал SIGUSR1 принят корректно, но после посылки сигнала SIGINT программа продолжала выполняться еще минуту, и только после этого завершилась. В этом отличие надежной обработки сигналов от ненадежной: есть возможность отложить прием некоторых других сигналов. Отложенные таким образом сигналы записываются в маску PENDING и обрабатываются после завершения обработки сигналов, которые отложили обработку. Механизм ненадёжных сигналов не позволяет откладывать обработку других сигналов (можно лишь установить игнорирование некоторых сигналов на время обработки).
 
@@ -425,97 +385,64 @@ de@de:~/lab4/sig$ jobs
 
 **Исходный код** программы:
 
+```c
 #include <stdio.h>
-
 #include <signal.h>
-
 #include <sys/types.h>
-
 #include <sys/stat.h>
-
 #include <unistd.h>
-
 #include <stdlib.h>
-
 #include <fcntl.h>
 
 void (\*mysig(int sig,void (\*hnd)(int)))(int) {
-
 `	`// надежная обработка сигналов
-
 `	`struct sigaction act,oldact;
-
 `	`act.sa\_handler = hnd;
-
 `	`sigemptyset(&act.sa\_mask);
-
 `	`sigaddset(&act.sa\_mask,SIGINT);
-
 `	`act.sa\_flags = 0;
-
 `	`if(sigaction(sig,&act,0) < 0)
-
 `		`return SIG\_ERR;
-
 `	`return act.sa\_handler;
-
 }
 
 void hndUSR1(int sig) {
-
 `	`if(sig != SIGUSR1) {
-
 `		`printf("Catched bad signal %d\n",sig);
-
 `		`return;
-
 `	`}
 
 `	`printf("SIGUSR1 catched, sending SIGINT\n");
-
 `	`kill(getpid(),SIGINT);
-
 `	`sleep(10);
-
 }
 
 int main() {
-
 `	`mysig(SIGUSR1,hndUSR1);
-
 `	`for(;;) {
-
 `		`pause();
-
 `	`}
-
 `	`return 0;
-
 }
+```
 
 **Результаты выполнения** программы:
-
+```c
 de@de:~/lab4/sig$ cc -w -o sigact2 sigact2.c
-
 de@de:~/lab4/sig$ ./sigact2 &
-
 [1] 28822
 
 de@de:~/lab4/sig$ kill -SIGUSR1 %1
-
 de@de:~/lab4/sig$ SIGUSR1 catched, sending SIGINT
-
 jobs
-
 [1]+  Running                 ./sigact2 &
 
 de@de:~/lab4/sig$ jobs
-
 [1]+  Running                 ./sigact2 &
 
 de@de:~/lab4/sig$ kill -SIGINT %1
-
 [1]+  Interrupt               ./sigact2
+```
 
 При генерации сигнала (в данном случае SIGINT) из обработчика другого сигнала обработка сгенерированного сигнала задерживается до конца выполнения текущего обработчика (как и в предыдущем эксперименте).
 
